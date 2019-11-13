@@ -62,12 +62,15 @@ pid d_err i_err p_err = -kp*p_err -ki*i_err -kd*d_err
 server :: Double -> Double -> Double -> WS.ServerApp
 server d_err i_err p_err pending = do
   conn <- WS.acceptRequest pending
+  server' d_err i_err p_err conn
+
+server' d_err i_err p_err conn = do
   msg <- WS.receiveData conn
 
   if Data.ByteString.Lazy.take 2 msg == "42" then
     case decode (Data.ByteString.Lazy.drop 2 msg) :: Maybe Message of
       Nothing ->
-        server d_err i_err p_err pending
+        server' d_err i_err p_err conn
 
       Just msgData -> do
         let response = Response { rThrottle       = 0.3
@@ -76,12 +79,12 @@ server d_err i_err p_err pending = do
         let responseMsg = append "42" $ encode response
 
         WS.sendTextData conn responseMsg
-        server ((mCte msgData) - p_err)
-               ((mCte msgData) + i_err)
-               (mCte msgData)
-               pending
+        server' ((mCte msgData) - p_err)
+                ((mCte msgData) + i_err)
+                (mCte msgData)
+                conn
   else
-    server d_err i_err p_err pending
+    server' d_err i_err p_err conn
 
 main =
   WS.runServer "127.0.0.1" 4567 $ server 0.0 0.0 0.0
