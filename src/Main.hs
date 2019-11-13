@@ -2,76 +2,86 @@
 
 module Main where
 
-
-import Prelude hiding (putStrLn, getLine, concat, drop, take)
-
-import GHC.Exts (fromList)
-import System.IO (hFlush, stdout)
-
 import Data.Aeson
-import Data.Scientific
-import Data.Vector hiding ((++), fromList, concat, drop, take)
-import Data.ByteString hiding (putStrLn, appendFile, concat)
-import Data.ByteString.Lazy (fromStrict, concat)
-import Data.ByteString.Lazy.Char8 (putStrLn)
+import Data.Vector
+import Data.ByteString.Lazy
+
+import qualified Network.WebSockets as WS
 
 
 data Message = Message
-  { steering_angle :: Scientific
-  , throttle       :: Scientific
-  , speed          :: Scientific
-  , cte            :: Scientific
-  , image          :: String
+  { mSteering_angle :: Double
+  , mThrottle       :: Double
+  , mSpeed          :: Double
+  , mCte            :: Double
+  , mImage          :: String
+  } deriving Show
+
+data Response = Response
+  { rThrottle       :: Double
+  , rSteering_angle :: Double
   } deriving Show
 
 instance FromJSON Message where
   parseJSON (Array a)
-    | a ! 0 == "telemetry" = parseJSON (a ! 1)
-    | otherwise            = mempty
+    | a ! 0 == "telemetry" &&
+      a ! 1 /= "null"      &&
+      a ! 1 /= "empty" = parseJSON (a ! 1)
+    | otherwise        = mempty
 
   parseJSON (Object v) = do
-    steering_angle <- v .: "steering_angle"
-    throttle       <- v .: "throttle"
-    speed          <- v .: "speed"
-    cte            <- v .: "cte"
-    image          <- v .: "image"
+    mSteering_angle <- v .: "steering_angle"
+    mThrottle       <- v .: "throttle"
+    mSpeed          <- v .: "speed"
+    mCte            <- v .: "cte"
+    mImage          <- v .: "image"
 
-    return
-      (Message
-      (read steering_angle :: Scientific)
-      (read throttle       :: Scientific)
-      (read speed          :: Scientific)
-      (read cte            :: Scientific)
-      image)
+    return (Message
+            (read mSteering_angle :: Double)
+            (read mThrottle       :: Double)
+            (read mSpeed          :: Double)
+            (read mCte            :: Double)
+            mImage)
+
+  parseJSON _ = mempty
+
+instance ToJSON Response where
+  toJSON r =
+    Array $ fromList [ "steer"
+                     , object [ "throttle"       .= rThrottle r
+                              , "steering_angle" .= rSteering_angle r]]
 
 
-pid :: Scientific -> Scientific -> Scientific -> Scientific
+pid :: Double -> Double -> Double -> Double
 pid d_err i_err p_err = -kp*p_err -ki*i_err -kd*d_err
     where
       kp  = 0.25
       ki  = 0.001
       kd  = 10.0
 
+server :: Double -> Double -> Double -> WS.ServerApp
+server d_err i_err p_err pending = do
+  conn <- WS.acceptRequest pending
+  msg <- WS.receiveData conn
 
-mainLoop d_err i_err p_err = do
-  msg <- getLine
+  if Data.ByteString.Lazy.take 2 msg == "42" then
+    case decode (Data.ByteString.Lazy.drop 2 msg) :: Maybe Message of
+      Nothing ->
+        server d_err i_err p_err pending
 
-  if take 2 msg == "42" then
-    case (decodeStrict (drop 2 msg) :: Maybe Message) of
-      Nothing -> do
-        putStrLn "42[\"manual\",{}]"
-      Just obj -> do
-        let reponse = Array $ fromList [ "steer",
-                                         Object $ fromList [ ("throttle", Number 0.3),
-                                                             ("steering_angle", Number $ pid d_err i_err p_err)]]
+      Just msgData -> do
+        let response = Response { rThrottle       = 0.3
+                                , rSteering_angle = pid d_err i_err p_err}
 
-        putStrLn $ concat ["42", (encode reponse)]
-        hFlush stdout
+        let responseMsg = append "42" $ encode response
 
-        mainLoop ((cte obj) - p_err) ((cte obj) + i_err) (cte obj)
+        WS.sendTextData conn responseMsg
+        server ((mCte msgData) - p_err)
+               ((mCte msgData) + i_err)
+               (mCte msgData)
+               pending
   else
-    putStrLn "42[\"manual\",{}]"
+    server d_err i_err p_err pending
 
-  mainLoop d_err i_err p_err
-
-main = mainLoop 0.0 0.0 0.0
+main =
+  WS.runServer "127.0.0.1" 4567 $ server 0.0 0.0 0.0
