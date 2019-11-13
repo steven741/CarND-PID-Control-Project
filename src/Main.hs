@@ -77,16 +77,19 @@ server' d_err i_err p_err conn = do
         server' d_err i_err p_err conn
 
       Just msgData -> do
+        let cte    = mCte msgData
+        let d_err' = cte - p_err
+        let i_err' = cte + i_err
+        let p_err' = cte
+
         let response = Response { rThrottle       = 0.3
-                                , rSteering_angle = pid d_err i_err p_err}
+                                , rSteering_angle = pid d_err' i_err' p_err'}
 
         let responseMsg = append "42" $ encode response
 
         WS.sendTextData conn responseMsg
-        server' ((mCte msgData) - p_err)
-                ((mCte msgData) + i_err)
-                (mCte msgData)
-                conn
+
+        server' d_err' i_err' p_err' conn
   else
     server' d_err i_err p_err conn
 
