@@ -54,10 +54,10 @@ instance ToJSON Response where
 
 pid :: Double -> Double -> Double -> Double
 pid d_err i_err p_err = -kp*p_err -ki*i_err -kd*d_err
-    where
-      kp  = 0.25
-      ki  = 0.001
-      kd  = 10.0
+  where
+    kp  = 0.25
+    ki  = 0.001
+    kd  = 10.0
 
 server :: WS.ServerApp
 server pending = do
