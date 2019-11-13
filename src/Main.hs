@@ -59,11 +59,12 @@ pid d_err i_err p_err = -kp*p_err -ki*i_err -kd*d_err
       ki  = 0.001
       kd  = 10.0
 
-server :: Double -> Double -> Double -> WS.ServerApp
-server d_err i_err p_err pending = do
+server :: WS.ServerApp
+server pending = do
   conn <- WS.acceptRequest pending
-  server' d_err i_err p_err conn
+  server' 0.0 0.0 0.0 conn
 
+server' :: Double -> Double -> Double -> WS.Connection -> IO ()
 server' d_err i_err p_err conn = do
   msg <- WS.receiveData conn
 
@@ -87,4 +88,4 @@ server' d_err i_err p_err conn = do
     server' d_err i_err p_err conn
 
 main =
-  WS.runServer "127.0.0.1" 4567 $ server 0.0 0.0 0.0
+  WS.runServer "127.0.0.1" 4567 server
