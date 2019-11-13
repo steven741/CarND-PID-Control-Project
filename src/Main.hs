@@ -68,8 +68,11 @@ server' :: Double -> Double -> Double -> WS.Connection -> IO ()
 server' d_err i_err p_err conn = do
   msg <- WS.receiveData conn
 
-  if Data.ByteString.Lazy.take 2 msg == "42" then
-    case decode (Data.ByteString.Lazy.drop 2 msg) :: Maybe Message of
+  let msgCode = Data.ByteString.Lazy.take 2 msg
+  let msgBody = Data.ByteString.Lazy.drop 2 msg
+
+  if msgCode == "42" then
+    case decode msgBody :: Maybe Message of
       Nothing ->
         server' d_err i_err p_err conn
 
