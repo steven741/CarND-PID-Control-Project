@@ -23,9 +23,9 @@ data Response = Response
 instance FromJSON Message where
   parseJSON (Array a)
     | a ! 0 == "telemetry" &&
-      a ! 1 /= "null"      &&
-      a ! 1 /= "empty" = parseJSON (a ! 1)
-    | otherwise        = mempty
+      a ! 1 /= "empty"     &&
+      a ! 1 /= Null = parseJSON (a ! 1)
+    | otherwise     = mempty
 
   parseJSON (Object v) = do
     mSteering_angle <- v .: "steering_angle"
