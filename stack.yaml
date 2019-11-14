@@ -1,0 +1,11 @@
+resolver: lts-14.14
+
+ghc-options:
+  pid: -rtsopts=none -O2 -threaded -XOverloadedStrings
+
+packages:
+- .
+
+extra-deps:
+- aeson-1.4.6.0
+- websockets-0.12.6.1
