@@ -34,12 +34,11 @@ instance FromJSON Message where
     mCte            <- v .: "cte"
     mImage          <- v .: "image"
 
-    return (Message
-            (read mSteering_angle :: Double)
-            (read mThrottle       :: Double)
-            (read mSpeed          :: Double)
-            (read mCte            :: Double)
-            mImage)
+    return $ Message (read mSteering_angle :: Double)
+                     (read mThrottle       :: Double)
+                     (read mSpeed          :: Double)
+                     (read mCte            :: Double)
+                     mImage
 
   parseJSON _ = mempty
 
@@ -79,14 +78,14 @@ server' d_err i_err p_err conn = do
         let d_err' = cte - p_err
         let i_err' = cte + i_err
         let p_err' = cte
+        let steer  = pid d_err' i_err' p_err'
 
         let response = Response { rThrottle       = 0.3
-                                , rSteering_angle = pid d_err' i_err' p_err'}
+                                , rSteering_angle = steer }
 
         let responseMsg = append "42" $ encode response
 
         WS.sendTextData conn responseMsg
-
         server' d_err' i_err' p_err' conn
   else
     server' d_err i_err p_err conn
